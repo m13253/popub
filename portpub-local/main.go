@@ -81,8 +81,9 @@ func dialRelay(local_addr, relay_addr, auth_key string) error {
 		return err
 	}
 	if !bytes.Equal(buf[:4], []byte("SUCC")) {
-		log.Fatalln("incorrect authorization key:", auth_key)
+		log.Fatalf("incorrect authorization key: %q\n", auth_key)
 	}
+	log.Println("authorized:", conn.RemoteAddr().String())
 
 	for {
 		conn.SetReadDeadline(time.Now().Add(90 * time.Second))
@@ -105,6 +106,7 @@ func acceptConn(relay_conn *net.TCPConn, local_addr string) {
 	if err != nil {
 		relay_conn.Close()
 		log.Println(err)
+		return
 	}
 
 	public_addr := make([]byte, (int(addr_len[0]) << 8) | int(addr_len[1]))
@@ -112,6 +114,7 @@ func acceptConn(relay_conn *net.TCPConn, local_addr string) {
 	if err != nil {
 		relay_conn.Close()
 		log.Println(err)
+		return
 	}
 
 	log.Println("accept:", string(public_addr))
@@ -120,12 +123,14 @@ func acceptConn(relay_conn *net.TCPConn, local_addr string) {
 	if err != nil {
 		relay_conn.Close()
 		log.Println(err)
+		return
 	}
 
 	local_conn, err := net.DialTCP("tcp", nil, local_tcp_addr)
 	if err != nil {
 		relay_conn.Close()
 		log.Println(err)
+		return
 	}
 
 	go copyTCPConn(local_conn, relay_conn)

@@ -87,7 +87,7 @@ func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_
 		return
 	}
 	if !bytes.Equal(buf[:4], []byte("AUTH")) {
-		log.Println("protocol violation:", relay_conn.RemoteAddr().String())
+		log.Printf("protocol violation: %s sent %q\n", relay_conn.RemoteAddr().String(), buf[:4])
 		relay_conn.Close()
 		return
 	}
