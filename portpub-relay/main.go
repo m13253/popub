@@ -31,7 +31,7 @@ import (
 
 func main() {
 	if len(os.Args) != 4 {
-		fmt.Printf("Usage: %s relay_addr public_addr auth_key", os.Args[0])
+		fmt.Printf("Usage: %s relay_addr public_addr auth_key\n\n", os.Args[0])
 		return
 	}
 	relay_addr, public_addr, auth_key := os.Args[1], os.Args[2], os.Args[3]
@@ -147,6 +147,20 @@ func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_
 				return
 			}
 
+			for {
+				_, err = io.ReadFull(relay_conn, buf[:4])
+				if err != nil {
+					log.Println(err)
+					relay_conn.Close()
+					public_conn_chan <- public_conn
+					return
+				}
+
+				if bytes.Equal(buf[:4], []byte("ACPT")) {
+					break
+				}
+			}
+
 			go copyTCPConn(relay_conn, public_conn)
 			go copyTCPConn(public_conn, relay_conn)
 			return
@@ -157,6 +171,21 @@ func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_
 				log.Println(err)
 				relay_conn.Close()
 				return
+			}
+
+			for {
+				relay_conn.SetReadDeadline(time.Now().Add(90 * time.Second))
+				_, err = io.ReadFull(relay_conn, buf[:4])
+				if err != nil {
+					log.Println(err)
+					relay_conn.Close()
+					return
+				}
+				relay_conn.SetReadDeadline(time.Time {})
+
+				if bytes.Equal(buf[:4], []byte("PONG")) {
+					break
+				}
 			}
 		}
 	}

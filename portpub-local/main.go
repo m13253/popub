@@ -30,7 +30,7 @@ import (
 
 func main() {
 	if len(os.Args) != 4 {
-		fmt.Printf("Usage: %s local_addr relay_addr auth_key", os.Args[0])
+		fmt.Printf("Usage: %s local_addr relay_addr auth_key\n\n", os.Args[0])
 		return
 	}
 	local_addr, relay_addr, auth_key := os.Args[1], os.Args[2], os.Args[3]
@@ -48,53 +48,60 @@ func dialRelay(local_addr, relay_addr, auth_key string) error {
 		return err
 	}
 
-	conn, err := net.DialTCP("tcp", nil, relay_tcp_addr)
+	relay_conn, err := net.DialTCP("tcp", nil, relay_tcp_addr)
 	if err != nil {
 		return err
 	}
 
-	_, err = conn.Write([]byte("AUTH"))
+	_, err = relay_conn.Write([]byte("AUTH"))
 	if err != nil {
-		conn.Close()
+		relay_conn.Close()
 		return err
 	}
 
 	var buf [20]byte
-	_, err = io.ReadFull(conn, buf[:20])
+	_, err = io.ReadFull(relay_conn, buf[:20])
 	if err != nil {
-		conn.Close()
+		relay_conn.Close()
 		return err
 	}
 
 	h := sha1.New()
 	io.WriteString(h, auth_key)
 	h.Write(buf[:20])
-	_, err = conn.Write(h.Sum(nil)[:])
+	_, err = relay_conn.Write(h.Sum(nil)[:])
 	if err != nil {
-		conn.Close()
+		relay_conn.Close()
 		return err
 	}
 
-	_, err = io.ReadFull(conn, buf[:4])
+	_, err = io.ReadFull(relay_conn, buf[:4])
 	if err != nil {
-		conn.Close()
+		relay_conn.Close()
 		return err
 	}
 	if !bytes.Equal(buf[:4], []byte("SUCC")) {
 		log.Fatalf("incorrect authorization key: %q\n", auth_key)
 	}
-	log.Println("authorized:", conn.RemoteAddr().String())
+	log.Println("authorized:", relay_conn.RemoteAddr().String())
 
 	for {
-		conn.SetReadDeadline(time.Now().Add(90 * time.Second))
-		_, err = io.ReadFull(conn, buf[:4])
+		relay_conn.SetReadDeadline(time.Now().Add(90 * time.Second))
+		_, err = io.ReadFull(relay_conn, buf[:4])
 		if err != nil {
-			conn.Close()
+			relay_conn.Close()
 			return err
 		}
-		if bytes.Equal(buf[:4], []byte("CONN")) {
-			conn.SetReadDeadline(time.Time {})
-			go acceptConn(conn, local_addr)
+		relay_conn.SetReadDeadline(time.Time {})
+
+		if bytes.Equal(buf[:4], []byte("PING")) {
+			_, err = relay_conn.Write([]byte("PONG"))
+			if err != nil {
+				relay_conn.Close()
+				return err
+			}
+		} else if bytes.Equal(buf[:4], []byte("CONN")) {
+			go acceptConn(relay_conn, local_addr)
 			return nil
 		}
 	}
@@ -118,6 +125,12 @@ func acceptConn(relay_conn *net.TCPConn, local_addr string) {
 	}
 
 	log.Println("accept:", string(public_addr))
+	_, err = relay_conn.Write([]byte("ACPT"))
+	if err != nil {
+		relay_conn.Close()
+		log.Println(err)
+		return
+	}
 
 	local_tcp_addr, err := net.ResolveTCPAddr("tcp", local_addr)
 	if err != nil {
