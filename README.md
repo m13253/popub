@@ -6,7 +6,7 @@ Publish a service from localhost onto your server.
 Scenario
 --------
 
-If you have a web service, a game service, an SSH service, a VNC service, or any TCP service at your home computer. Your home computer don't have a public and static IP address, but you want your friends to connect to your service.
+If you have a web service, a game service, an SSH service, a VNC service, or any TCP service at your home computer. Your home computer is behind NAT and don't have a public and static IP address, but you want your friends to connect to your service.
 
 If you operate another computer or server, which has a public or static IP address, you can run Portpub there, to relay the data between your home computer and your friends, so that your service is made public accessible.
 
