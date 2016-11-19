@@ -48,6 +48,8 @@ cd portpub-relay
 ./portpub-relay :46687 :8080 SomePassword
 ```
 
+Note: The password is for authorization only, your traffic is not encrypted.
+
 License
 -------
 

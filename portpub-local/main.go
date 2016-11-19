@@ -19,7 +19,7 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha1"
+	"crypto/sha512"
 	"fmt"
 	"io"
 	"log"
@@ -59,16 +59,16 @@ func dialRelay(local_addr, relay_addr, auth_key string) error {
 		return err
 	}
 
-	var buf [20]byte
-	_, err = io.ReadFull(relay_conn, buf[:20])
+	var buf [64]byte
+	_, err = io.ReadFull(relay_conn, buf[:64])
 	if err != nil {
 		relay_conn.Close()
 		return err
 	}
 
-	h := sha1.New()
+	h := sha512.New()
 	io.WriteString(h, auth_key)
-	h.Write(buf[:20])
+	h.Write(buf[:64])
 	_, err = relay_conn.Write(h.Sum(nil)[:])
 	if err != nil {
 		relay_conn.Close()

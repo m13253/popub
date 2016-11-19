@@ -20,7 +20,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha512"
 	"fmt"
 	"io"
 	"log"
@@ -79,7 +79,7 @@ func acceptConn(public_listener *net.TCPListener, public_conn_chan chan *net.TCP
 }
 
 func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_key string) {
-	var buf [20]byte
+	var buf [64]byte
 	_, err := io.ReadFull(relay_conn, buf[:4])
 	if err != nil {
 		log.Println(err)
@@ -92,32 +92,32 @@ func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_
 		return
 	}
 
-	var nonce [20]byte
-	_, err = rand.Read(nonce[:20])
+	var nonce [64]byte
+	_, err = rand.Read(nonce[:64])
 	if err != nil {
 		log.Println(err)
 		relay_conn.Close()
 		return
 	}
 
-	_, err = relay_conn.Write(nonce[:20])
+	_, err = relay_conn.Write(nonce[:64])
 	if err != nil {
 		log.Println(err)
 		relay_conn.Close()
 		return
 	}
 
-	_, err = io.ReadFull(relay_conn, buf[:20])
+	_, err = io.ReadFull(relay_conn, buf[:64])
 	if err != nil {
 		log.Println(err)
 		relay_conn.Close()
 		return
 	}
 
-	h := sha1.New()
+	h := sha512.New()
 	io.WriteString(h, auth_key)
-	h.Write(nonce[:20])
-	if !bytes.Equal(buf[:20], h.Sum(nil)[:]) {
+	h.Write(nonce[:64])
+	if !bytes.Equal(buf[:64], h.Sum(nil)[:]) {
 		log.Println("authorization failed:", relay_conn.RemoteAddr().String())
 		relay_conn.Write([]byte("FAIL"))
 		relay_conn.Close()
