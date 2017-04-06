@@ -1,0 +1,13 @@
+[Unit]
+Description=Portpub Local Service
+After=network.target
+
+[Service]
+Type=simple
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+EnvironmentFile=/etc/portpub/local/%i
+LimitNOFILE=32768
+ExecStart=/usr/bin/portpub-local $LOCAL_ADDR $RELAY_ADDR $AUTH_KEY
+
+[Install]
+WantedBy=multi-user.target
