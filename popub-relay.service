@@ -1,12 +1,12 @@
 [Unit]
-Description=Portpub Relay
+Description=Popub Relay
 After=network-online.target
 
 [Service]
 Type=simple
 User=nobody
 # Fill in your parameters and uncomment the following line
-#ExecStart=/usr/local/bin/portpub-relay :<relay port> :<public port> <password>
+#ExecStart=/usr/local/bin/popub-relay :<relay port> :<public port> <password>
 Restart=always
 RestartSec=3
 

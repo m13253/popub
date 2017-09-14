@@ -1,5 +1,5 @@
 /*
-    Portpub -- A port forwarding program
+    Popub -- A port forwarding program
     Copyright (C) 2016 Star Brilliant <m13253@hotmail.com>
 
     This program is free software: you can redistribute it and/or modify

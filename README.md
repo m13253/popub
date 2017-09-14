@@ -1,4 +1,4 @@
-Portpub
+Popub
 =======
 
 Publish a service from localhost onto your server.
@@ -8,7 +8,7 @@ Scenario
 
 If you have a web service, a game service, an SSH service, a VNC service, or any TCP service at your home computer. Your home computer is behind NAT and don't have a public and static IP address, but you want your friends to connect to your service.
 
-If you operate another computer or server, which has a public or static IP address, you can run Portpub there, to relay the data between your home computer and your friends, so that your service is made public accessible.
+If you operate another computer or server, which has a public or static IP address, you can run Popub there, to relay the data between your home computer and your friends, so that your service is made public accessible.
 
 Building
 --------
@@ -18,14 +18,14 @@ Download the source code, and the latest [Go](https://golang.org/dl/).
 On your home computer, type:
 
 ```
-cd portpub-local
+cd popub-local
 go build
 ```
 
 On your server machine, type:
 
 ```
-cd portpub-relay
+cd popub-relay
 go build
 ```
 
@@ -37,15 +37,15 @@ Assume you have a web service at `localhost:80`, you want to publish it as `my.s
 On your home computer, type:
 
 ```
-cd portpub-local
-./portpub-local localhost:80 my.server.addr:46687 SomePassword
+cd popub-local
+./popub-local localhost:80 my.server.addr:46687 SomePassword
 ```
 
 On your server machine, type:
 
 ```
-cd portpub-relay
-./portpub-relay :46687 :8080 SomePassword
+cd popub-relay
+./popub-relay :46687 :8080 SomePassword
 ```
 
 Note: The password is for authorization only, your traffic is not encrypted.
