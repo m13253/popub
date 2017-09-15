@@ -8,7 +8,8 @@ clean:
 	rm -f popub-local/popub-local popub-relay/popub-relay
 
 install: all
-	install -Dm0755 popub-local/popub-local popub-relay/popub-relay "$(PREFIX)/bin/"
+	install -Dm0755 popub-local/popub-local "$(PREFIX)/bin/popub-local"
+	install -Dm0755 popub-relay/popub-relay "$(PREFIX)/bin/popub-relay"
 	$(MAKE) -C systemd install
 
 uninstall:
