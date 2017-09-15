@@ -1,0 +1,16 @@
+[Unit]
+Description=Popub Relay
+After=network-online.target
+
+[Service]
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+EnvironmentFile=/etc/popub/relay/%i.conf
+ExecStart=/usr/local/bin/popub-relay "$RELAY_ADDR" "$PUBLIC_ADDR" "$AUTH_KEY"
+LimitNOFILE=1048576
+Restart=always
+RestartSec=3
+Type=simple
+User=nobody
+
+[Install]
+WantedBy=multi-user.target

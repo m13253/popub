@@ -50,6 +50,11 @@ cd popub-relay
 
 Note: The password is for authorization only, your traffic is not encrypted.
 
+Running as Systemd services
+---------------------------
+
+Refer to [systemd/README.md] for instructions on running as Systemd services.
+
 License
 -------
 
