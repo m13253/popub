@@ -1,5 +1,5 @@
 Popub
-=======
+=====
 
 Publish a service from localhost onto your server.
 
@@ -58,4 +58,4 @@ This program is licensed under GPL version 3. See [COPYING](COPYING) for details
 See Also
 --------
 
-Also please check [pofw](https://github.com/m13253/pofw), which is a general purpose port forwarder. It is like [socat](http://www.dest-unreach.org/socat/), but handles concurrency.
+Also please check [pofwd](https://github.com/m13253/pofwd), which is a general purpose port forwarder. It is like [socat](http://www.dest-unreach.org/socat/), but handles concurrency.
