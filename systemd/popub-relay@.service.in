@@ -5,13 +5,12 @@ After=network-online.target
 [Service]
 Type=simple
 AmbientCapabilities=CAP_NET_BIND_SERVICE
-EnvironmentFile=/etc/popub/relay.d/%i
-EnvironmentFile=%h/.config/popub/%i
-ExecStart=<PREFIX>/bin/popub-relay "$RELAY_ADDR" "$PUBLIC_ADDR" "$AUTH_KEY"
+EnvironmentFile=/etc/popub/relay/%i.conf
+ExecStart=@PREFIX@/bin/popub-relay "$RELAY_ADDR" "$PUBLIC_ADDR" "$AUTH_KEY"
 LimitNOFILE=1048576
 Restart=always
 RestartSec=3
-User=<USER>
+User=nobody
 
 [Install]
 WantedBy=multi-user.target
