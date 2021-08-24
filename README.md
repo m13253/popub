@@ -46,10 +46,13 @@ On your server machine, type:
 
 Note: The password is for authorization only, your traffic is not encrypted.
 
-Running as Systemd services
----------------------------
+### Running as Systemd services
 
-Refer to [systemd/README.md](contrib/systemd/README.md) for instructions on running as Systemd services.
+Refer to [contrib/systemd/README.md](contrib/systemd/README.md) for instructions on running as Systemd services.
+
+### Running as Launchd services
+
+A pair of Launchd config is under contrib/launchd for your reference. The launch arguments are hardcoded, so please change it accordingly.
 
 License
 -------
