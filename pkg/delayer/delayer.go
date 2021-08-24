@@ -1,8 +1,8 @@
-package main
+package delayer
 
 import (
-	"time"
 	"log"
+	"time"
 )
 
 type delayer struct {
@@ -10,8 +10,8 @@ type delayer struct {
 	b time.Duration
 }
 
-func newDelayer() *delayer {
-	return &delayer {
+func NewDelayer() *delayer {
+	return &delayer{
 		a: 0,
 		b: time.Second,
 	}
@@ -24,7 +24,7 @@ func (d *delayer) reset() *delayer {
 
 func (d *delayer) sleep() *delayer {
 	if d.a >= 3*time.Minute {
-		time.Sleep(3*time.Minute)
+		time.Sleep(3 * time.Minute)
 	} else {
 		time.Sleep(d.a)
 		d.a, d.b = d.b, d.a+d.b
@@ -32,7 +32,7 @@ func (d *delayer) sleep() *delayer {
 	return d
 }
 
-func (d *delayer) procError(err error) bool {
+func (d *delayer) ProcError(err error) bool {
 	if err != nil {
 		log.Println(err)
 		d.sleep()

@@ -1,0 +1,28 @@
+on:
+  push:
+
+name: "popub-relay"
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [ "1.16.x" ]
+        platform: [ ubuntu-latest, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build
+        run: go build -ldflags "-s -w" github.com/m13253/popub/cmd/popub-relay
+
+      - name: Archive Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: popub-relay-${{ matrix.platform }}-${{ matrix.go-version }}
+          path: "./popub-*"

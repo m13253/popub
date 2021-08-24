@@ -1,0 +1,83 @@
+on:
+  push:
+  pull_request:
+
+name: "Golang tests"
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [ "1.16.x" ]
+        # platform: [ ubuntu-latest, macos-latest, windows-latest ]
+        platform: [ ubuntu-latest ]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run tests
+        run: go test -v ./...
+        continue-on-error: true
+
+      - name: Run linters
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: latest
+          skip-go-installation: true
+        continue-on-error: true
+
+      - name: Run converage report
+        run: go test -covermode=count -coverprofile="coverage.out" ./...
+        continue-on-error: true
+
+      - name: Convert coverage.out to coverage.lcov
+        uses: jandelgado/gcov2lcov-action@v1.0.6
+
+      - name: Coveralls
+        uses: coverallsapp/github-action@1.1.3
+        continue-on-error: true
+        with:
+          github-token: ${{ secrets.github_token }}
+          path-to-lcov: "./coverage.lcov"
+
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v2
+        with:
+          name: code-coverage-report
+          path: "./coverage.*"
+          retention-days: 1
+
+  mods_verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        if: success()
+        uses: actions/setup-go@v2
+        with:
+          go-version: "1.16.x"
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Mod download
+        run: go mod download
+
+      - name: Mod verify
+        run: go mod verify
+
+  sloc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: sloc calculate
+        id: scc
+        uses: iryanbell/scc-docker-action@v1.0.0
+        with:
+          args: ${{ env.workspace }} --wide --gen --include-ext go,yml
