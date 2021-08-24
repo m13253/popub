@@ -11,11 +11,11 @@ clean:
 install: all
 	install -Dm0755 popub-local "$(DESTDIR)$(PREFIX)/bin/popub-local"
 	install -Dm0755 popub-relay "$(DESTDIR)$(PREFIX)/bin/popub-relay"
-	$(MAKE) -C systemd install DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)"
+	$(MAKE) -C contrib/systemd install DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)"
 
 uninstall:
 	rm -f "$(PREFIX)/bin/popub-local" "$(DESTDIR)$(PREFIX)/bin/popub-relay"
-	$(MAKE) -C systemd uninstall DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)"
+	$(MAKE) -C contrib/systemd uninstall DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)"
 
 popub-local:
 	$(GOBUILD) github.com/m13253/popub/cmd/popub-local
