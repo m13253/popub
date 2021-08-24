@@ -35,61 +35,61 @@ func main() {
 		fmt.Printf("Usage: %s relay_addr public_addr auth_key\n\n", os.Args[0])
 		return
 	}
-	relay_addr, public_addr, auth_key := os.Args[1], os.Args[2], os.Args[3]
+	relayAddr, publicAddr, authKey := os.Args[1], os.Args[2], os.Args[3]
 
-	relay_tcp_addr, err := net.ResolveTCPAddr("tcp", relay_addr)
+	relayTcpAddr, err := net.ResolveTCPAddr("tcp", relayAddr)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	public_tcp_addr, err := net.ResolveTCPAddr("tcp", public_addr)
+	publicTcpAddr, err := net.ResolveTCPAddr("tcp", publicAddr)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	relay_listener, err := net.ListenTCP("tcp", relay_tcp_addr)
+	relayListener, err := net.ListenTCP("tcp", relayTcpAddr)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	public_listener, err := net.ListenTCP("tcp", public_tcp_addr)
+	publicListener, err := net.ListenTCP("tcp", publicTcpAddr)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	public_conn_chan := make(chan *net.TCPConn)
-	go acceptConn(public_listener, public_conn_chan)
+	publicConnChan := make(chan *net.TCPConn)
+	go acceptConn(publicListener, publicConnChan)
 
 	d := delayer.NewDelayer()
 	for {
-		relay_conn, err := relay_listener.AcceptTCP()
+		relayConn, err := relayListener.AcceptTCP()
 		if !d.ProcError(err) {
-			go authConn(relay_conn, public_conn_chan, auth_key)
+			go authConn(relayConn, publicConnChan, authKey)
 		}
 	}
 }
 
-func acceptConn(public_listener *net.TCPListener, public_conn_chan chan *net.TCPConn) {
+func acceptConn(publicListener *net.TCPListener, publicConnChan chan *net.TCPConn) {
 	d := delayer.NewDelayer()
 	for {
-		public_conn, err := public_listener.AcceptTCP()
+		publicConn, err := publicListener.AcceptTCP()
 		if !d.ProcError(err) {
-			public_conn_chan <- public_conn
+			publicConnChan <- publicConn
 		}
 	}
 }
 
-func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_key string) {
+func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey string) {
 	var buf [64]byte
-	_, err := io.ReadFull(relay_conn, buf[:4])
+	_, err := io.ReadFull(relayConn, buf[:4])
 	if err != nil {
 		log.Println(err)
-		relay_conn.Close()
+		relayConn.Close()
 		return
 	}
 	if !bytes.Equal(buf[:4], []byte("AUTH")) {
-		log.Printf("protocol violation: %s sent %q\n", relay_conn.RemoteAddr().String(), buf[:4])
-		relay_conn.Close()
+		log.Printf("protocol violation: %s sent %q\n", relayConn.RemoteAddr().String(), buf[:4])
+		relayConn.Close()
 		return
 	}
 
@@ -97,63 +97,63 @@ func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_
 	_, err = rand.Read(nonce[:64])
 	if err != nil {
 		log.Println(err)
-		relay_conn.Close()
+		relayConn.Close()
 		return
 	}
 
-	_, err = relay_conn.Write(nonce[:64])
+	_, err = relayConn.Write(nonce[:64])
 	if err != nil {
 		log.Println(err)
-		relay_conn.Close()
+		relayConn.Close()
 		return
 	}
 
-	_, err = io.ReadFull(relay_conn, buf[:64])
+	_, err = io.ReadFull(relayConn, buf[:64])
 	if err != nil {
 		log.Println(err)
-		relay_conn.Close()
+		relayConn.Close()
 		return
 	}
 
 	h := sha512.New()
-	io.WriteString(h, auth_key)
+	io.WriteString(h, authKey)
 	h.Write(nonce[:64])
 	if !bytes.Equal(buf[:64], h.Sum(nil)[:]) {
-		log.Println("authorization failed:", relay_conn.RemoteAddr().String())
-		relay_conn.Write([]byte("FAIL"))
-		relay_conn.Close()
+		log.Println("authorization failed:", relayConn.RemoteAddr().String())
+		relayConn.Write([]byte("FAIL"))
+		relayConn.Close()
 		return
 	}
-	log.Println("authorized:", relay_conn.RemoteAddr().String())
+	log.Println("authorized:", relayConn.RemoteAddr().String())
 
-	_, err = relay_conn.Write([]byte("SUCC"))
+	_, err = relayConn.Write([]byte("SUCC"))
 	if err != nil {
 		log.Println(err)
-		relay_conn.Close()
+		relayConn.Close()
 		return
 	}
 
 	for {
 		select {
-		case public_conn := <-public_conn_chan:
-			public_addr := public_conn.RemoteAddr().String()
-			log.Println("accept:", public_addr)
-			buf := []byte{'C', 'O', 'N', 'N', uint8(len(public_addr) >> 8), uint8(len(public_addr))}
-			buf = append(buf, public_addr...)
-			_, err := relay_conn.Write(buf)
+		case publicConn := <-publicConnChan:
+			publicAddr := publicConn.RemoteAddr().String()
+			log.Println("accept:", publicAddr)
+			buf := []byte{'C', 'O', 'N', 'N', uint8(len(publicAddr) >> 8), uint8(len(publicAddr))}
+			buf = append(buf, publicAddr...)
+			_, err := relayConn.Write(buf)
 			if err != nil {
 				log.Println(err)
-				relay_conn.Close()
-				public_conn_chan <- public_conn
+				relayConn.Close()
+				publicConnChan <- publicConn
 				return
 			}
 
 			for {
-				_, err = io.ReadFull(relay_conn, buf[:4])
+				_, err = io.ReadFull(relayConn, buf[:4])
 				if err != nil {
 					log.Println(err)
-					relay_conn.Close()
-					public_conn_chan <- public_conn
+					relayConn.Close()
+					publicConnChan <- publicConn
 					return
 				}
 
@@ -162,27 +162,27 @@ func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_
 				}
 			}
 
-			go copyTCPConn(relay_conn, public_conn)
-			go copyTCPConn(public_conn, relay_conn)
+			go copyTCPConn(relayConn, publicConn)
+			go copyTCPConn(publicConn, relayConn)
 			return
 
 		case <-time.After(60 * time.Second):
-			_, err := relay_conn.Write([]byte("PING"))
+			_, err := relayConn.Write([]byte("PING"))
 			if err != nil {
 				log.Println(err)
-				relay_conn.Close()
+				relayConn.Close()
 				return
 			}
 
 			for {
-				relay_conn.SetReadDeadline(time.Now().Add(90 * time.Second))
-				_, err = io.ReadFull(relay_conn, buf[:4])
+				relayConn.SetReadDeadline(time.Now().Add(90 * time.Second))
+				_, err = io.ReadFull(relayConn, buf[:4])
 				if err != nil {
 					log.Println(err)
-					relay_conn.Close()
+					relayConn.Close()
 					return
 				}
-				relay_conn.SetReadDeadline(time.Time{})
+				relayConn.SetReadDeadline(time.Time{})
 
 				if bytes.Equal(buf[:4], []byte("PONG")) {
 					break
