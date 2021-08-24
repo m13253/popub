@@ -32,7 +32,7 @@ jobs:
         continue-on-error: true
 
       - name: Run converage report
-        run: go test -covermode=count -coverprofile=coverage.out ./...
+        run: go test -covermode=count -coverprofile="coverage.out" ./...
         continue-on-error: true
 
       - name: Convert coverage.out to coverage.lcov
