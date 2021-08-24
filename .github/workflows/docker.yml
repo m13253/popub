@@ -22,3 +22,6 @@ jobs:
           file: contrib/docker/Dockerfile
           push: false
           tags: popub:latest
+
+      - name: List Containers
+        run: docker images ls

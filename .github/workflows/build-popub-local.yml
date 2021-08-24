@@ -20,3 +20,9 @@ jobs:
 
       - name: Build
         run: go build -ldflags "-s -w" github.com/m13253/popub/cmd/popub-local
+
+      - name: Archive Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: popub-local-${{ matrix.platform }}-${{ matrix.go-version }}
+          path: "./popub-*"
