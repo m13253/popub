@@ -1,19 +1,19 @@
 /*
-    Popub -- A port forwarding program
-    Copyright (C) 2016 Star Brilliant <m13253@hotmail.com>
+   Popub -- A port forwarding program
+   Copyright (C) 2016 Star Brilliant <m13253@hotmail.com>
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 package main
 
@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"crypto/sha512"
 	"fmt"
+	"github.com/m13253/popub/pkg/delayer"
 	"io"
 	"log"
 	"net"
@@ -35,10 +36,10 @@ func main() {
 	}
 	local_addr, relay_addr, auth_key := os.Args[1], os.Args[2], os.Args[3]
 
-	d := newDelayer()
+	d := delayer.NewDelayer()
 	for {
 		err := dialRelay(local_addr, relay_addr, auth_key)
-		d.procError(err)
+		d.ProcError(err)
 	}
 }
 
@@ -92,7 +93,7 @@ func dialRelay(local_addr, relay_addr, auth_key string) error {
 			relay_conn.Close()
 			return err
 		}
-		relay_conn.SetReadDeadline(time.Time {})
+		relay_conn.SetReadDeadline(time.Time{})
 
 		if bytes.Equal(buf[:4], []byte("PING")) {
 			_, err = relay_conn.Write([]byte("PONG"))
@@ -116,7 +117,7 @@ func acceptConn(relay_conn *net.TCPConn, local_addr string) {
 		return
 	}
 
-	public_addr := make([]byte, (int(addr_len[0]) << 8) | int(addr_len[1]))
+	public_addr := make([]byte, (int(addr_len[0])<<8)|int(addr_len[1]))
 	_, err = io.ReadFull(relay_conn, public_addr)
 	if err != nil {
 		relay_conn.Close()

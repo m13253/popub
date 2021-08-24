@@ -1,19 +1,19 @@
 /*
-    Popub -- A port forwarding program
-    Copyright (C) 2016 Star Brilliant <m13253@hotmail.com>
+   Popub -- A port forwarding program
+   Copyright (C) 2016 Star Brilliant <m13253@hotmail.com>
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 package main
 
@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"crypto/sha512"
 	"fmt"
+	"github.com/m13253/popub/pkg/delayer"
 	"io"
 	"log"
 	"net"
@@ -59,20 +60,20 @@ func main() {
 	public_conn_chan := make(chan *net.TCPConn)
 	go acceptConn(public_listener, public_conn_chan)
 
-	d := newDelayer()
+	d := delayer.NewDelayer()
 	for {
 		relay_conn, err := relay_listener.AcceptTCP()
-		if !d.procError(err) {
+		if !d.ProcError(err) {
 			go authConn(relay_conn, public_conn_chan, auth_key)
 		}
 	}
 }
 
 func acceptConn(public_listener *net.TCPListener, public_conn_chan chan *net.TCPConn) {
-	d := newDelayer()
+	d := delayer.NewDelayer()
 	for {
 		public_conn, err := public_listener.AcceptTCP()
-		if !d.procError(err) {
+		if !d.ProcError(err) {
 			public_conn_chan <- public_conn
 		}
 	}
@@ -137,7 +138,7 @@ func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_
 		case public_conn := <-public_conn_chan:
 			public_addr := public_conn.RemoteAddr().String()
 			log.Println("accept:", public_addr)
-			buf := []byte { 'C', 'O', 'N', 'N', uint8(len(public_addr)>>8), uint8(len(public_addr)) }
+			buf := []byte{'C', 'O', 'N', 'N', uint8(len(public_addr) >> 8), uint8(len(public_addr))}
 			buf = append(buf, public_addr...)
 			_, err := relay_conn.Write(buf)
 			if err != nil {
@@ -181,7 +182,7 @@ func authConn(relay_conn *net.TCPConn, public_conn_chan chan *net.TCPConn, auth_
 					relay_conn.Close()
 					return
 				}
-				relay_conn.SetReadDeadline(time.Time {})
+				relay_conn.SetReadDeadline(time.Time{})
 
 				if bytes.Equal(buf[:4], []byte("PONG")) {
 					break
