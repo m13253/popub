@@ -41,8 +41,7 @@ func IncreaseNonce(nonce *[chacha20poly1305.NonceSizeX]byte) {
 	c2 := binary.BigEndian.Uint64(nonce[16:chacha20poly1305.NonceSizeX])
 
 	// Last bit reserved for communication direction
-	// Second-last bit reserved for differenciating length / body
-	inc := uint64(4)
+	inc := uint64(2)
 
 	c2 += inc
 	if c2 == 0 {
@@ -120,7 +119,7 @@ func ReadPacket(r io.Reader, aead cipher.AEAD, nonce *[chacha20poly1305.NonceSiz
 		return nil, err
 	}
 	packetLenBuf, err := aead.Open(tmp[:0], nonce[:], tmp[:2+chacha20poly1305.Overhead], nil)
-	nonce[chacha20poly1305.NonceSizeX-1] ^= 2
+	IncreaseNonce(nonce)
 	if err != nil {
 		fmt.Println("BOO!")
 		return nil, err
@@ -154,7 +153,7 @@ func WritePacket(w io.Writer, packet []byte, aead cipher.AEAD, nonce *[chacha20p
 
 	binary.BigEndian.PutUint16(tmp[:2], uint16(packetLen))
 	packetLenBuf := aead.Seal(tmp[:0], nonce[:], tmp[:2], nil)
-	nonce[chacha20poly1305.NonceSizeX-1] ^= 2
+	IncreaseNonce(nonce)
 	if len(packetLenBuf) != 2+chacha20poly1305.Overhead {
 		panic("aead.Seal did not return the correct buffer length")
 	}
