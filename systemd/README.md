@@ -29,7 +29,7 @@ Local configuration files should follow the template below:
 ```
 LOCAL_ADDR=localhost:80
 RELAY_ADDR=my.server.addr:46687
-AUTH_KEY=SomePassword
+PASSPHRASE=SomePassphrase
 ```
 
 Relay configuration files should follow the template below:
@@ -37,7 +37,7 @@ Relay configuration files should follow the template below:
 ```
 RELAY_ADDR=:46687
 PUBLIC_ADDR=:8080
-AUTH_KEY=SomePassword
+PASSPHRASE=SomePassphrase
 ```
 
 ## Activate the service

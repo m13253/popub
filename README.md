@@ -38,14 +38,14 @@ On your home computer, type:
 
 ```
 cd popub-local
-./popub-local localhost:80 my.server.addr:46687 SomePassword
+./popub-local localhost:80 my.server.addr:46687 SomePassphrase
 ```
 
 On your server machine, type:
 
 ```
 cd popub-relay
-./popub-relay :46687 :8080 SomePassword
+./popub-relay :46687 :8080 SomePassphrase
 ```
 
 Running as Systemd services
