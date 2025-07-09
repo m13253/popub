@@ -1,9 +1,10 @@
 .PHONY: all clean install uninstall
 
-all: popub-local popub-relay
-
 PREFIX=/usr/local
 GOBUILD=go build
+GOGET=go get
+
+all: popub-local popub-relay
 
 clean:
 	rm -f popub-local popub-relay
@@ -18,7 +19,9 @@ uninstall:
 	$(MAKE) -C systemd uninstall DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)"
 
 popub-local: cmd/popub-local/main.go internal/common/common.go internal/delayer/delayer.go
+	$(GOGET) -u -v ./cmd/popub-local
 	$(GOBUILD) ./cmd/popub-local
 
 popub-relay: cmd/popub-relay/main.go internal/common/common.go internal/delayer/delayer.go
+	$(GOGET) -u -v ./cmd/popub-relay
 	$(GOBUILD) ./cmd/popub-relay
