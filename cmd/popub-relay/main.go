@@ -118,6 +118,7 @@ func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey 
 	nonceSend := common.InitNonce(false)
 	nonceRecv := common.InitNonce(true)
 
+	_ = relayConn.SetNoDelay(false)
 	err = common.WriteX25519(relayConn, privkey.PublicKey(), authKey)
 	if err != nil {
 		log.Println(err)
@@ -163,6 +164,7 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 				return
 			}
 			relayConn.SetWriteDeadline(time.Time{})
+			_ = relayConn.SetNoDelay(true)
 			goto accepted
 
 		case packet, ok := <-recvChan:
@@ -178,6 +180,7 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 				relayConn.Close()
 				return
 			}
+			_ = relayConn.SetNoDelay(true)
 			relayConn.SetDeadline(time.Now().Add(60 * time.Second))
 			err := common.WritePacket(relayConn, (&[256 - common.PacketOverhead]byte{})[:], aead, nonceSend, buf[:])
 			if err != nil {
