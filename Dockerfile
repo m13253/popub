@@ -1,4 +1,4 @@
-FROM golang:1
+FROM golang:1-alpine
 
 ADD . /root/popub
 RUN go get -C /root/popub -u -v ./cmd/popub-local ./cmd/popub-relay && \
