@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/chacha20poly1305"
@@ -16,6 +17,10 @@ import (
 )
 
 const (
+	PingInterval           = 60 * time.Second
+	NetworkTimeout         = 60 * time.Second
+	ExtendedNetworkTimeout = 90 * time.Second
+
 	PacketOverhead    = 2 + chacha20poly1305.Overhead + chacha20poly1305.Overhead
 	MaxPacketSize     = 16384
 	MaxBodySize       = MaxPacketSize - PacketOverhead

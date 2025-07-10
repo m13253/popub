@@ -54,31 +54,29 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 		return err
 	}
 
-	relayTCPAddr, err := net.ResolveTCPAddr("tcp", relayAddr)
+	relayConn, err := net.DialTimeout("tcp", relayAddr, common.NetworkTimeout)
 	if err != nil {
 		return err
 	}
+	relayTCPConn := relayConn.(*net.TCPConn)
 
-	relayConn, err := net.DialTCP("tcp", nil, relayTCPAddr)
+	_ = relayTCPConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
+	err = common.WriteX25519(relayTCPConn, privkey.PublicKey(), authKey)
 	if err != nil {
+		relayTCPConn.Close()
 		return err
 	}
 
-	err = common.WriteX25519(relayConn, privkey.PublicKey(), authKey)
+	_ = relayTCPConn.SetReadDeadline(time.Now().Add(common.NetworkTimeout))
+	pubkey, err := common.ReadX25519(relayTCPConn, authKey)
 	if err != nil {
-		relayConn.Close()
-		return err
-	}
-
-	pubkey, err := common.ReadX25519(relayConn, authKey)
-	if err != nil {
-		relayConn.Close()
+		relayTCPConn.Close()
 		return fmt.Errorf("authorization failure: %v", err)
 	}
 
 	psk, err := privkey.ECDH(pubkey)
 	if err != nil {
-		relayConn.Close()
+		relayTCPConn.Close()
 		return err
 	}
 	if len(psk) != chacha20poly1305.KeySize {
@@ -87,67 +85,59 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 
 	aead, err := chacha20poly1305.NewX(psk)
 	if err != nil {
-		relayConn.Close()
+		relayTCPConn.Close()
 		return err
 	}
 
 	nonceRecv := common.InitNonce(false)
 	nonceSend := common.InitNonce(true)
 
-	log.Println("authorized:", relayConn.RemoteAddr().String())
+	log.Println("authorized:", relayTCPConn.RemoteAddr().String())
 
 	var buf [common.MaxRecvBufferSize]byte
 	for {
-		relayConn.SetReadDeadline(time.Now().Add(90 * time.Second))
-		packet, err := common.ReadPacket(relayConn, aead, &nonceRecv, buf[:])
+		_ = relayTCPConn.SetReadDeadline(time.Now().Add(common.ExtendedNetworkTimeout))
+		packet, err := common.ReadPacket(relayTCPConn, aead, &nonceRecv, buf[:])
 		if err != nil {
-			relayConn.Close()
+			relayTCPConn.Close()
 			return err
 		}
-		relayConn.SetReadDeadline(time.Time{})
 
 		if bytes.HasPrefix(packet, []byte{0}) {
-			relayConn.SetWriteDeadline(time.Now().Add(60 * time.Second))
-			err = common.WritePacket(relayConn, (&[256 - common.PacketOverhead]byte{})[:], aead, &nonceSend, buf[:])
+			_ = relayTCPConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
+			err = common.WritePacket(relayTCPConn, (&[256 - common.PacketOverhead]byte{})[:], aead, &nonceSend, buf[:])
 			if err != nil {
-				relayConn.Close()
+				relayTCPConn.Close()
 				return err
 			}
-			relayConn.SetWriteDeadline(time.Time{})
 
 		} else if bytes.HasPrefix(packet, []byte{1}) {
 			remoteAddr := string(bytes.TrimRight(packet[1:], "\x00"))
 			log.Println("accept:", remoteAddr)
 
-			relayConn.SetWriteDeadline(time.Now().Add(60 * time.Second))
-			err := common.WritePacket(relayConn, (&[256 - common.PacketOverhead]byte{1})[:], aead, &nonceSend, buf[:])
+			_ = relayTCPConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
+			err := common.WritePacket(relayTCPConn, (&[256 - common.PacketOverhead]byte{1})[:], aead, &nonceSend, buf[:])
 			if err != nil {
-				relayConn.Close()
+				relayTCPConn.Close()
 				return err
 			}
-			relayConn.SetWriteDeadline(time.Time{})
 
-			go acceptConn(relayConn, localAddr, aead, &nonceRecv, &nonceSend)
+			go acceptConn(relayTCPConn, localAddr, aead, &nonceRecv, &nonceSend)
 			return nil
 		}
 	}
 }
 
-func acceptConn(relayConn *net.TCPConn, local_addr string, aead cipher.AEAD, nonceRecv, nonceSend *[chacha20poly1305.NonceSizeX]byte) {
-	localTCPAddr, err := net.ResolveTCPAddr("tcp", local_addr)
+func acceptConn(relayConn *net.TCPConn, localAddr string, aead cipher.AEAD, nonceRecv, nonceSend *[chacha20poly1305.NonceSizeX]byte) {
+	localConn, err := net.Dial("tcp", localAddr)
 	if err != nil {
 		relayConn.Close()
 		log.Println(err)
 		return
 	}
+	localTCPConn := localConn.(*net.TCPConn)
 
-	localConn, err := net.DialTCP("tcp", nil, localTCPAddr)
-	if err != nil {
-		relayConn.Close()
-		log.Println(err)
-		return
-	}
-
-	go common.ForwardEncryptedToClear(relayConn, localConn, aead, nonceRecv)
-	go common.ForwardClearToEncrypted(localConn, relayConn, aead, nonceSend)
+	_ = relayConn.SetDeadline(time.Time{})
+	go common.ForwardEncryptedToClear(relayConn, localTCPConn, aead, nonceRecv)
+	go common.ForwardClearToEncrypted(localTCPConn, relayConn, aead, nonceSend)
 }

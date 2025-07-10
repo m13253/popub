@@ -41,42 +41,37 @@ func main() {
 	relayAddr, publicAddr, passphrase := os.Args[1], os.Args[2], os.Args[3]
 	authKey := common.PassphraseToPSK(passphrase)
 
-	relayTCPAddr, err := net.ResolveTCPAddr("tcp", relayAddr)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	publicTCPAddr, err := net.ResolveTCPAddr("tcp", publicAddr)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	relayListener, err := net.ListenTCP("tcp", relayTCPAddr)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	publicListener, err := net.ListenTCP("tcp", publicTCPAddr)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
 	publicConnChan := make(chan *net.TCPConn)
-	go acceptConn(publicListener, publicConnChan)
+	go listenRelay(publicConnChan, relayAddr, authKey)
+	listenPublic(publicConnChan, publicAddr)
+}
+
+func listenRelay(publicConnChan chan *net.TCPConn, relayAddr string, authKey []byte) {
+	relayListener, err := net.Listen("tcp", relayAddr)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	relayTCPListener := relayListener.(*net.TCPListener)
 
 	d := delayer.New()
 	for {
-		relayConn, err := relayListener.AcceptTCP()
+		relayConn, err := relayTCPListener.AcceptTCP()
 		if !d.ProcError(err) {
 			go authConn(relayConn, publicConnChan, authKey)
 		}
 	}
 }
 
-func acceptConn(publicListener *net.TCPListener, publicConnChan chan<- *net.TCPConn) {
+func listenPublic(publicConnChan chan<- *net.TCPConn, publicAddr string) {
+	publicListener, err := net.Listen("tcp", publicAddr)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	publicTCPListener := publicListener.(*net.TCPListener)
+
 	d := delayer.New()
 	for {
-		publicConn, err := publicListener.AcceptTCP()
+		publicConn, err := publicTCPListener.AcceptTCP()
 		if !d.ProcError(err) {
 			publicConnChan <- publicConn
 		}
@@ -84,12 +79,14 @@ func acceptConn(publicListener *net.TCPListener, publicConnChan chan<- *net.TCPC
 }
 
 func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey []byte) {
+	_ = relayConn.SetReadDeadline(time.Now().Add(common.NetworkTimeout))
 	pubkey, err := common.ReadX25519(relayConn, authKey)
 	if err != nil {
 		log.Println("authorization failure:", err)
 		relayConn.Close()
 		return
 	}
+	_ = relayConn.SetReadDeadline(time.Time{})
 
 	privkey, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
@@ -119,6 +116,7 @@ func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey 
 	nonceRecv := common.InitNonce(true)
 
 	_ = relayConn.SetNoDelay(false)
+	_ = relayConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
 	err = common.WriteX25519(relayConn, privkey.PublicKey(), authKey)
 	if err != nil {
 		log.Println(err)
@@ -155,7 +153,7 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 				packet = append(packet, 0)
 			}
 
-			relayConn.SetDeadline(time.Now().Add(60 * time.Second))
+			_ = relayConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
 			err := common.WritePacket(relayConn, packet, aead, nonceSend, buf[:])
 			if err != nil {
 				log.Println(err)
@@ -163,7 +161,6 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 				publicConnChan <- publicConn
 				return
 			}
-			relayConn.SetWriteDeadline(time.Time{})
 			_ = relayConn.SetNoDelay(true)
 			goto accepted
 
@@ -174,21 +171,20 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 				pingBalance -= 1
 			}
 
-		case <-time.After(60 * time.Second):
+		case <-time.After(common.PingInterval):
 			if pingBalance > 1 {
 				log.Println("connection timed out")
 				relayConn.Close()
 				return
 			}
 			_ = relayConn.SetNoDelay(true)
-			relayConn.SetDeadline(time.Now().Add(60 * time.Second))
+			_ = relayConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
 			err := common.WritePacket(relayConn, (&[256 - common.PacketOverhead]byte{})[:], aead, nonceSend, buf[:])
 			if err != nil {
 				log.Println(err)
 				relayConn.Close()
 				return
 			}
-			relayConn.SetWriteDeadline(time.Time{})
 			pingBalance += 1
 		}
 	}
@@ -201,12 +197,13 @@ accepted:
 				publicConnChan <- publicConn
 				return
 			} else if bytes.HasPrefix(packet, []byte{1}) {
+				_ = relayConn.SetWriteDeadline(time.Time{})
 				go common.ForwardClearToEncrypted(publicConn, relayConn, aead, nonceSend)
 				go common.ForwardEncryptedToClear(relayConn, publicConn, aead, nonceRecv)
 				return
 			}
 
-		case <-time.After(60 * time.Second):
+		case <-time.After(common.NetworkTimeout):
 			log.Println("connection timed out")
 			relayConn.Close()
 			publicConnChan <- publicConn
@@ -224,8 +221,8 @@ func relayLoopRecv(relayConn *net.TCPConn, recvChan chan<- []byte, aead cipher.A
 			relayConn.Close()
 			break
 		}
-		relayConn.SetReadDeadline(time.Time{})
 
+		packet = bytes.Clone(packet) // Allow reusing buf
 		recvChan <- packet
 
 		if !bytes.HasPrefix(packet, []byte{0}) {
