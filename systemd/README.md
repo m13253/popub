@@ -7,6 +7,7 @@ You will be able to run Popub as a Systemd service, either automatically or manu
 To install, type:
 
 ```
+make
 sudo make install
 ```
 
