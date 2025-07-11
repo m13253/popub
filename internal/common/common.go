@@ -180,8 +180,13 @@ func ForwardClearToEncrypted(clearConn, cryptConn *net.TCPConn, aead cipher.AEAD
 	for {
 		n, err := clearConn.Read(plainBuf[:])
 		if err != nil {
-			if err != io.EOF {
+			if err == io.EOF {
+				_ = cryptConn.CloseWrite()
+				_ = clearConn.CloseRead()
+			} else {
 				log.Println(err)
+				_ = cryptConn.Close()
+				_ = clearConn.Close()
 			}
 			break
 		}
@@ -192,10 +197,11 @@ func ForwardClearToEncrypted(clearConn, cryptConn *net.TCPConn, aead cipher.AEAD
 		err = WritePacket(cryptConn, plainBuf[:n], aead, nonceSend, cipherBuf[:])
 		if err != nil {
 			log.Println(err)
+			_ = clearConn.Close()
+			_ = cryptConn.Close()
 			break
 		}
 	}
-	_ = cryptConn.CloseWrite()
 }
 
 func ForwardEncryptedToClear(cryptConn, clearConn *net.TCPConn, aead cipher.AEAD, nonceRecv *[chacha20poly1305.NonceSizeX]byte) {
@@ -204,8 +210,13 @@ func ForwardEncryptedToClear(cryptConn, clearConn *net.TCPConn, aead cipher.AEAD
 	for {
 		packet, err := ReadPacket(cryptConn, aead, nonceRecv, cipherBuf[:])
 		if err != nil {
-			if err != io.EOF {
+			if err == io.EOF {
+				_ = clearConn.CloseWrite()
+				_ = cryptConn.CloseRead()
+			} else {
 				log.Println(err)
+				_ = clearConn.Close()
+				_ = cryptConn.Close()
 			}
 			break
 		}
@@ -216,8 +227,9 @@ func ForwardEncryptedToClear(cryptConn, clearConn *net.TCPConn, aead cipher.AEAD
 		_, err = clearConn.Write(packet)
 		if err != nil {
 			log.Println(err)
+			_ = cryptConn.Close()
+			_ = clearConn.Close()
 			break
 		}
 	}
-	_ = clearConn.CloseWrite()
 }
