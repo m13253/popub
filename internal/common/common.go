@@ -196,7 +196,6 @@ func ForwardClearToEncrypted(clearConn, cryptConn *net.TCPConn, aead cipher.AEAD
 		}
 	}
 	_ = cryptConn.CloseWrite()
-	_ = clearConn.CloseRead()
 }
 
 func ForwardEncryptedToClear(cryptConn, clearConn *net.TCPConn, aead cipher.AEAD, nonceRecv *[chacha20poly1305.NonceSizeX]byte) {
@@ -221,5 +220,4 @@ func ForwardEncryptedToClear(cryptConn, clearConn *net.TCPConn, aead cipher.AEAD
 		}
 	}
 	_ = clearConn.CloseWrite()
-	_ = cryptConn.CloseRead()
 }
