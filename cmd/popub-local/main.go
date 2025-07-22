@@ -28,8 +28,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/m13253/popub/internal/backoff"
 	"github.com/m13253/popub/internal/common"
-	"github.com/m13253/popub/internal/delayer"
 	"github.com/m13253/popub/internal/proxy_v2"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -42,10 +42,10 @@ func main() {
 	localAddr, relayAddr, passphrase := os.Args[1], os.Args[2], os.Args[3]
 	authKey := common.PassphraseToPSK(passphrase)
 
-	d := delayer.New()
+	d := backoff.New()
 	for {
 		err := dialRelay(localAddr, relayAddr, authKey)
-		d.ProcError(err)
+		d.ProcessError(err)
 	}
 }
 
@@ -103,12 +103,15 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 		return err
 	}
 
+	// Starting here, network error no longer increases the backoff counter.
+
 	for {
 		_ = relayTCPConn.SetReadDeadline(time.Now().Add(common.ExtendedNetworkTimeout))
 		packet, err := common.ReadPacket(relayTCPConn, aead, &nonceRecv, buf[:])
 		if err != nil {
 			relayTCPConn.Close()
-			return err
+			log.Println(err)
+			return nil
 		}
 
 		if bytes.HasPrefix(packet, []byte{0}) {
@@ -116,7 +119,8 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 			err = common.WritePacket(relayTCPConn, (&[256 - common.PacketOverhead]byte{})[:], aead, &nonceSend, buf[:])
 			if err != nil {
 				relayTCPConn.Close()
-				return err
+				log.Println(err)
+				return nil
 			}
 
 		} else if bytes.HasPrefix(packet, []byte{0xd}) {
@@ -126,14 +130,16 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 			err = common.WritePacket(relayTCPConn, (&[256 - common.PacketOverhead]byte{0xd})[:], aead, &nonceSend, buf[:])
 			if err != nil {
 				relayTCPConn.Close()
-				return err
+				log.Println(err)
+				return nil
 			}
 			_ = relayConn.SetDeadline(time.Time{})
 
 			publicAddr, remoteAddr, err := proxy_v2.DecodeProxyV2Header(proxyHeader)
 			if err != nil {
 				relayTCPConn.Close()
-				return err
+				log.Println(err)
+				return nil
 			}
 			log.Println("accept:", publicAddr, "←", remoteAddr)
 

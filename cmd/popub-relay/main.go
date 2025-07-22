@@ -28,8 +28,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/m13253/popub/internal/backoff"
 	"github.com/m13253/popub/internal/common"
-	"github.com/m13253/popub/internal/delayer"
 	"github.com/m13253/popub/internal/proxy_v2"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -54,10 +54,10 @@ func listenRelay(publicConnChan chan *net.TCPConn, relayAddr string, authKey []b
 	}
 	relayTCPListener := relayListener.(*net.TCPListener)
 
-	d := delayer.New()
+	d := backoff.New()
 	for {
 		relayConn, err := relayTCPListener.AcceptTCP()
-		if !d.ProcError(err) {
+		if !d.ProcessError(err) {
 			go authConn(relayConn, publicConnChan, authKey)
 		}
 	}
@@ -70,10 +70,10 @@ func listenPublic(publicConnChan chan<- *net.TCPConn, publicAddr string) {
 	}
 	publicTCPListener := publicListener.(*net.TCPListener)
 
-	d := delayer.New()
+	d := backoff.New()
 	for {
 		publicConn, err := publicTCPListener.AcceptTCP()
-		if !d.ProcError(err) {
+		if !d.ProcessError(err) {
 			publicConnChan <- publicConn
 		}
 	}

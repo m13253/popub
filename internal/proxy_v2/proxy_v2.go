@@ -40,6 +40,7 @@ func EncodeProxyV2Header(conn *net.TCPConn) (buf [256 - common.PacketOverhead]by
 }
 
 func ExtractProxyV2Header(buf []byte) []byte {
+	// We ignore all errors. They will be checked later in DecodeProxyV2Header
 	if len(buf) < 16 {
 		return bytes.Clone(buf)
 	}
