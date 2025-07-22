@@ -64,7 +64,7 @@ L can assume the connection is dead if no ping payload has been received for 90 
 
 When R accepts an incoming connection from its public endpoint, it sends an accept payload to L.
 
-In the current implementation, an accept payload is `proxy_v2_header || zeros(221 - len(proxy_v2_header)`, where `proxy_v2_header` is defined in the [HAProxy PROXY protocol](https://www.haproxy.org/download/3.0/doc/proxy-protocol.txt).
+In the current implementation, an accept payload is `proxy_v2_header || zeros(221 - len(proxy_v2_header)`, where `proxy_v2_header` is defined in the [HAProxy PROXY protocol](https://www.haproxy.org/download/3.0/doc/proxy-protocol.txt). Currently, the information in `proxy_v2_header` is only used to print logs.
 
 L replies `0x0d || zeros(221)` back to R to acknowledge the connection. If L cannot decode `proxy_v2_header`, it terminates the connection after acknowledging the connection, to prevent the relay from retrying infinitely.
 
