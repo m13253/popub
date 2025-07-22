@@ -31,8 +31,8 @@ func PassphraseToPSK(passphrase string) []byte {
 	return argon2.IDKey([]byte(passphrase), []byte("popub"), 1, 64*1024, 4, chacha20poly1305.KeySize)
 }
 
-func InitNonce(isLocalToRelayDirection bool) (nonce [chacha20poly1305.NonceSizeX]byte) {
-	if isLocalToRelayDirection {
+func InitNonce(isRelayToLocalDirection bool) (nonce [chacha20poly1305.NonceSizeX]byte) {
+	if isRelayToLocalDirection {
 		nonce[chacha20poly1305.NonceSizeX-1] = 1
 	} else {
 		nonce[chacha20poly1305.NonceSizeX-1] = 0
@@ -66,53 +66,65 @@ func IncreaseNonce(nonce *[chacha20poly1305.NonceSizeX]byte) {
 	binary.BigEndian.PutUint64(nonce[16:chacha20poly1305.NonceSizeX], c2)
 }
 
-func ReadX25519(r io.Reader, auth_key []byte) (*ecdh.PublicKey, error) {
+func ReadX25519(r io.Reader, auth_key []byte, last_nonce *[chacha20poly1305.NonceSizeX]byte) (pubkey *ecdh.PublicKey, new_nonce [chacha20poly1305.NonceSizeX]byte, err error) {
 	aead, err := chacha20poly1305.NewX(auth_key)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + chacha20poly1305.Overhead + 184]byte
+	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + chacha20poly1305.Overhead + 184 + chacha20poly1305.NonceSizeX]byte
 	_, err = io.ReadFull(r, buf[:])
 	if err != nil {
-		return nil, err
+		return
 	}
-	pubkey, err := aead.Open(
+	copy(buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead+184:], last_nonce[:])
+	pubkeyBuf, err := aead.Open(
 		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX],
 		buf[:chacha20poly1305.NonceSizeX],
 		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead],
 		buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead:],
 	)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	return ecdh.X25519().NewPublicKey(pubkey)
+	pubkey, err = ecdh.X25519().NewPublicKey(pubkeyBuf)
+	if err != nil {
+		return
+	}
+
+	copy(new_nonce[:], buf[:chacha20poly1305.NonceSizeX])
+	return
 }
 
-func WriteX25519(w io.Writer, pubkey *ecdh.PublicKey, auth_key []byte) error {
+func WriteX25519(w io.Writer, pubkey *ecdh.PublicKey, auth_key []byte, last_nonce *[chacha20poly1305.NonceSizeX]byte) (new_nonce [chacha20poly1305.NonceSizeX]byte, err error) {
 	aead, err := chacha20poly1305.NewX(auth_key)
 	if err != nil {
-		return err
+		return
 	}
 
-	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + chacha20poly1305.Overhead + 184]byte
+	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + chacha20poly1305.Overhead + 184 + chacha20poly1305.NonceSizeX]byte
 	_, _ = rand.Read(buf[:chacha20poly1305.NonceSizeX])
 	copy(buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX+curve25519.PointSize], pubkey.Bytes())
-	_, _ = rand.Read(buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead:])
+	_, _ = rand.Read(buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead : chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead+184])
+	copy(buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead+184:], last_nonce[:])
 
-	tagBuf := aead.Seal(
+	pubkeyBuf := aead.Seal(
 		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX],
 		buf[:chacha20poly1305.NonceSizeX],
 		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX+curve25519.PointSize],
 		buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead:],
 	)
-	if len(tagBuf) != curve25519.PointSize+chacha20poly1305.Overhead {
+	if len(pubkeyBuf) != curve25519.PointSize+chacha20poly1305.Overhead {
 		panic("aead.Seal did not return the correct buffer length")
 	}
 
 	_, err = w.Write(buf[:])
-	return err
+	if err != nil {
+		return
+	}
+	copy(new_nonce[:], buf[:chacha20poly1305.NonceSizeX])
+	return
 }
 
 func ReadPacket(r io.Reader, aead cipher.AEAD, nonce *[chacha20poly1305.NonceSizeX]byte, tmp []byte) ([]byte, error) {

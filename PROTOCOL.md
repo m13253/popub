@@ -15,29 +15,30 @@ R: Relay side
 Each message is exactly 256 bytes.
 
 ```
-<L, R> psk: [32]byte := Argon2id(passphrase, salt="popub", time=1, memory=64*1024, threads=4, length=32)
+<L, R> psk := Argon2id(passphrase, salt="popub", time=1, memory=64*1024, threads=4, length=32)
 
 <L> privkey_L, pubkey_L := new_Curve25519_key_pair()
 <L> nonce_L := random(length=24)
 <L> fill_L := random(length=184)
-<L→R> nonce_L || XChaCha20Poly1305_seal(key=psk, nonce=nonce_L, plaintext=pubkey_L, additional_data=fill_L) || fill_L
+<L→R> nonce_L || XChaCha20Poly1305_seal(key=psk, nonce=nonce_L, plaintext=pubkey_L, additional_data=fill_L || zeros(24)) || fill_L
 
 <R> pubkey_L := XChaCha20Poly1305_open(…)
 <R> privkey_R, pubkey_R := new_Curve25519_key_pair()
 <R> ephkey := X25519(privkey_R, pubkey_L)
-<R> nonce_L := random(length=24)
-<R> fill_L := random(length=184)
-<R→L> nonce_R || XChaCha20Poly1305_seal(key=psk, nonce=nonce_R, plaintext=pubkey_R, additional_data=fill_R) || fill_R
+<R> nonce_R := random(length=24)
+<R> fill_R := random(length=184)
+<R→L> nonce_R || XChaCha20Poly1305_seal(key=psk, nonce=nonce_R, plaintext=pubkey_R, additional_data=fill_R || nonce_L) || fill_R
 
 <L> pubkey_R := XChaCha20Poly1305_open(…)
 <L> ephkey := X25519(privkey_L, pubkey_R)
+<L→R> encrypt_packet(payload=zeros(222), counter=0)
 ```
 
 After the ephemeral key `ephkey` is generated, all subsequent communication uses the encrypted packet format described below.
 
 ## Encrypted Packet format
 
-We use a 192-bit unsigned integer counter for each direction. It is initialized to 1 for L→R direction, and 0 for R→L direction. The counter is not transmitted on wire. After sending or receiving each packet, the counter increases by 4.
+We use a 192-bit unsigned integer counter for each direction. It is initialized to 0 for L→R direction, and 1 for R→L direction. The counter is not transmitted on wire. After sending or receiving each packet, the counter increases by 4.
 
 The payload of the packet must not be larger than 16350 bytes — ensuring the encrypted packet be no larger than 16384 bytes.
 

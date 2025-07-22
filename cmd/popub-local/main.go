@@ -61,14 +61,14 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 	relayTCPConn := relayConn.(*net.TCPConn)
 
 	_ = relayTCPConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
-	err = common.WriteX25519(relayTCPConn, privkey.PublicKey(), authKey)
+	nonce, err := common.WriteX25519(relayTCPConn, privkey.PublicKey(), authKey, &[chacha20poly1305.NonceSizeX]byte{})
 	if err != nil {
 		relayTCPConn.Close()
 		return err
 	}
 
 	_ = relayTCPConn.SetReadDeadline(time.Now().Add(common.NetworkTimeout))
-	pubkey, err := common.ReadX25519(relayTCPConn, authKey)
+	pubkey, _, err := common.ReadX25519(relayTCPConn, authKey, &nonce)
 	if err != nil {
 		relayTCPConn.Close()
 		return fmt.Errorf("authorization failure: %v", err)
@@ -89,12 +89,19 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 		return err
 	}
 
-	nonceRecv := common.InitNonce(false)
-	nonceSend := common.InitNonce(true)
+	nonceRecv := common.InitNonce(true)
+	nonceSend := common.InitNonce(false)
 
 	log.Println("authorized:", relayTCPConn.RemoteAddr().String())
 
 	var buf [common.MaxPacketSize]byte
+	_ = relayTCPConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
+	err = common.WritePacket(relayTCPConn, (&[256 - common.PacketOverhead]byte{})[:], aead, &nonceSend, buf[:])
+	if err != nil {
+		relayTCPConn.Close()
+		return err
+	}
+
 	for {
 		_ = relayTCPConn.SetReadDeadline(time.Now().Add(common.ExtendedNetworkTimeout))
 		packet, err := common.ReadPacket(relayTCPConn, aead, &nonceRecv, buf[:])

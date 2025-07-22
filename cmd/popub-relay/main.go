@@ -80,13 +80,12 @@ func listenPublic(publicConnChan chan<- *net.TCPConn, publicAddr string) {
 
 func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey []byte) {
 	_ = relayConn.SetReadDeadline(time.Now().Add(common.NetworkTimeout))
-	pubkey, err := common.ReadX25519(relayConn, authKey)
+	pubkey, nonce, err := common.ReadX25519(relayConn, authKey, &[chacha20poly1305.NonceSizeX]byte{})
 	if err != nil {
 		log.Println("authorization failure:", err)
 		relayConn.Close()
 		return
 	}
-	_ = relayConn.SetReadDeadline(time.Time{})
 
 	privkey, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
@@ -112,17 +111,32 @@ func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey 
 		return
 	}
 
-	nonceSend := common.InitNonce(false)
-	nonceRecv := common.InitNonce(true)
+	nonceSend := common.InitNonce(true)
+	nonceRecv := common.InitNonce(false)
 
-	_ = relayConn.SetNoDelay(false)
 	_ = relayConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
-	err = common.WriteX25519(relayConn, privkey.PublicKey(), authKey)
+	_, err = common.WriteX25519(relayConn, privkey.PublicKey(), authKey, &nonce)
 	if err != nil {
 		log.Println(err)
 		relayConn.Close()
 		return
 	}
+
+	var buf [common.MaxRecvBufferSize]byte
+	for {
+		_ = relayConn.SetReadDeadline(time.Now().Add(common.NetworkTimeout))
+		packet, err := common.ReadPacket(relayConn, aead, &nonceRecv, buf[:])
+		if err != nil {
+			log.Println(err)
+			relayConn.Close()
+			return
+		}
+
+		if bytes.HasPrefix(packet, []byte{0}) {
+			break
+		}
+	}
+	_ = relayConn.SetReadDeadline(time.Time{})
 
 	log.Println("authorized:", relayConn.RemoteAddr().String())
 
@@ -164,7 +178,6 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 				publicConnChan <- publicConn
 				return
 			}
-			_ = relayConn.SetNoDelay(true)
 			goto accepted
 
 		case packet, ok := <-recvChan:
@@ -182,7 +195,6 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 				relayConn.Close()
 				return
 			}
-			_ = relayConn.SetNoDelay(true)
 			_ = relayConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
 			err := common.WritePacket(relayConn, (&[256 - common.PacketOverhead]byte{})[:], aead, nonceSend, buf[:])
 			if err != nil {
