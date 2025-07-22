@@ -73,7 +73,7 @@ func ReadX25519(r io.Reader, auth_key []byte, last_nonce *[chacha20poly1305.Nonc
 	}
 
 	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + chacha20poly1305.Overhead + 184 + chacha20poly1305.NonceSizeX]byte
-	_, err = io.ReadFull(r, buf[:])
+	_, err = io.ReadFull(r, buf[:chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead+184])
 	if err != nil {
 		return
 	}
@@ -119,7 +119,7 @@ func WriteX25519(w io.Writer, pubkey *ecdh.PublicKey, auth_key []byte, last_nonc
 		panic("aead.Seal did not return the correct buffer length")
 	}
 
-	_, err = w.Write(buf[:])
+	_, err = w.Write(buf[:chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead+184])
 	if err != nil {
 		return
 	}
