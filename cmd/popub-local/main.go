@@ -90,8 +90,8 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 		return err
 	}
 
-	nonceRecv := common.InitNonce(true)
 	nonceSend := common.InitNonce(false)
+	nonceRecv := common.InitNonce(true)
 
 	log.Println("authorized:", relayTCPConn.LocalAddr(), "→", relayTCPConn.RemoteAddr())
 

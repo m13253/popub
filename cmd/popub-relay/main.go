@@ -112,8 +112,8 @@ func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey 
 		return
 	}
 
-	nonceSend := common.InitNonce(true)
 	nonceRecv := common.InitNonce(false)
+	nonceSend := common.InitNonce(true)
 
 	_ = relayConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
 	_, err = common.WriteX25519(relayConn, privkey.PublicKey(), authKey, &nonce)
