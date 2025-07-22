@@ -30,6 +30,7 @@ import (
 
 	"github.com/m13253/popub/internal/common"
 	"github.com/m13253/popub/internal/delayer"
+	"github.com/m13253/popub/internal/proxy_v2"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -82,7 +83,7 @@ func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey 
 	_ = relayConn.SetReadDeadline(time.Now().Add(common.NetworkTimeout))
 	pubkey, nonce, err := common.ReadX25519(relayConn, authKey, &[chacha20poly1305.NonceSizeX]byte{})
 	if err != nil {
-		log.Println("authorization failure:", err)
+		log.Printf("authorization failure from %s: %v", relayConn.RemoteAddr(), err)
 		relayConn.Close()
 		return
 	}
@@ -138,7 +139,7 @@ func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey 
 	}
 	_ = relayConn.SetReadDeadline(time.Time{})
 
-	log.Println("authorized:", relayConn.RemoteAddr().String())
+	log.Println("authorized:", relayConn.LocalAddr(), "←", relayConn.RemoteAddr())
 
 	recvChan := make(chan []byte, 1)
 
@@ -157,27 +158,18 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 		case publicConn = <-publicConnChan:
 			pingTicker.Stop()
 
-			publicAddr := publicConn.RemoteAddr().String()
-			log.Println("accept:", publicAddr)
-
-			if len(publicAddr) > common.MaxBodySize-1 {
-				publicAddr = publicAddr[:common.MaxBodySize-1]
-			}
-			packet := make([]byte, 0, 256-common.PacketOverhead)
-			packet = append(packet, 1)
-			packet = append(packet, publicAddr...)
-			for i := len(packet); i < 256-common.PacketOverhead; i++ {
-				packet = append(packet, 0)
-			}
+			log.Println("accept:", publicConn.LocalAddr(), "←", publicConn.RemoteAddr())
+			proxyHeader := proxy_v2.EncodeProxyV2Header(publicConn)
 
 			_ = relayConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
-			err := common.WritePacket(relayConn, packet, aead, nonceSend, buf[:])
+			err := common.WritePacket(relayConn, proxyHeader[:], aead, nonceSend, buf[:])
 			if err != nil {
 				log.Println(err)
 				relayConn.Close()
 				publicConnChan <- publicConn
 				return
 			}
+			_ = relayConn.SetWriteDeadline(time.Time{})
 			goto accepted
 
 		case packet, ok := <-recvChan:
@@ -214,8 +206,7 @@ accepted:
 			if !ok {
 				publicConnChan <- publicConn
 				return
-			} else if bytes.HasPrefix(packet, []byte{1}) {
-				_ = relayConn.SetWriteDeadline(time.Time{})
+			} else if bytes.HasPrefix(packet, []byte{0xd}) {
 				go common.ForwardClearToEncrypted(publicConn, relayConn, aead, nonceSend)
 				go common.ForwardEncryptedToClear(relayConn, publicConn, aead, nonceRecv)
 				return

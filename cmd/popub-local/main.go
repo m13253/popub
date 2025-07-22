@@ -30,6 +30,7 @@ import (
 
 	"github.com/m13253/popub/internal/common"
 	"github.com/m13253/popub/internal/delayer"
+	"github.com/m13253/popub/internal/proxy_v2"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -92,7 +93,7 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 	nonceRecv := common.InitNonce(true)
 	nonceSend := common.InitNonce(false)
 
-	log.Println("authorized:", relayTCPConn.RemoteAddr().String())
+	log.Println("authorized:", relayTCPConn.LocalAddr(), "→", relayTCPConn.RemoteAddr())
 
 	var buf [common.MaxPacketSize]byte
 	_ = relayTCPConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
@@ -118,9 +119,23 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 				return err
 			}
 
-		} else if bytes.HasPrefix(packet, []byte{1}) {
-			remoteAddr := string(bytes.TrimRight(packet[1:], "\x00"))
-			log.Println("accept:", remoteAddr)
+		} else if bytes.HasPrefix(packet, []byte{0xd}) {
+			proxyHeader := proxy_v2.ExtractProxyV2Header(packet)
+
+			_ = relayTCPConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
+			err = common.WritePacket(relayTCPConn, (&[256 - common.PacketOverhead]byte{0xd})[:], aead, &nonceSend, buf[:])
+			if err != nil {
+				relayTCPConn.Close()
+				return err
+			}
+			_ = relayConn.SetDeadline(time.Time{})
+
+			publicAddr, remoteAddr, err := proxy_v2.DecodeProxyV2Header(proxyHeader)
+			if err != nil {
+				relayTCPConn.Close()
+				return err
+			}
+			log.Println("accept:", publicAddr, "←", remoteAddr)
 
 			go acceptConn(relayTCPConn, localAddr, aead, &nonceRecv, &nonceSend)
 			return nil
@@ -129,17 +144,6 @@ func dialRelay(localAddr, relayAddr string, authKey []byte) error {
 }
 
 func acceptConn(relayConn *net.TCPConn, localAddr string, aead cipher.AEAD, nonceRecv, nonceSend *[chacha20poly1305.NonceSizeX]byte) {
-	var buf [256]byte
-
-	_ = relayConn.SetWriteDeadline(time.Now().Add(common.NetworkTimeout))
-	err := common.WritePacket(relayConn, (&[256 - common.PacketOverhead]byte{1})[:], aead, nonceSend, buf[:])
-	if err != nil {
-		relayConn.Close()
-		log.Println(err)
-		return
-	}
-	_ = relayConn.SetDeadline(time.Time{})
-
 	localConn, err := net.Dial("tcp", localAddr)
 	if err != nil {
 		relayConn.Close()

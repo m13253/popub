@@ -18,10 +18,10 @@ uninstall:
 	rm -f "$(PREFIX)/bin/popub-local" "$(DESTDIR)$(PREFIX)/bin/popub-relay"
 	$(MAKE) -C systemd uninstall DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)"
 
-popub-local: cmd/popub-local/main.go internal/common/common.go internal/delayer/delayer.go
+popub-local: cmd/popub-local/main.go internal/common/common.go internal/delayer/delayer.go internal/proxy_v2/proxy_v2.go
 	$(GOGET) -u -v ./cmd/popub-local
 	$(GOBUILD) ./cmd/popub-local
 
-popub-relay: cmd/popub-relay/main.go internal/common/common.go internal/delayer/delayer.go
+popub-relay: cmd/popub-relay/main.go internal/common/common.go internal/delayer/delayer.go internal/proxy_v2/proxy_v2.go
 	$(GOGET) -u -v ./cmd/popub-relay
 	$(GOBUILD) ./cmd/popub-relay

@@ -10,7 +10,7 @@ L: Local side
 
 R: Relay side
 
-## Authentication
+## Authorization
 
 Each message is exactly 256 bytes.
 
@@ -60,19 +60,19 @@ In the current implementation, a ping payload is 222 bytes of 0x00.
 
 L can assume the connection is dead if no ping payload has been received for 90 seconds.
 
-### `payload[0] == 0x01`: accept
+### `payload[0] == 0x0d`: accept
 
 When R accepts an incoming connection from its public endpoint, it sends an accept payload to L.
 
-In the current implementation, an accept payload is `0x01 || human_readable_incoming_remote_address || zeros(max(221 - len(human_readable_incoming_remote_address)), 0)`. This address is only used for logging, but in the future, I might consider reformatting it to support the [HAProxy PROXY protocol](https://www.haproxy.org/download/3.0/doc/proxy-protocol.txt).
+In the current implementation, an accept payload is `proxy_v2_header || zeros(221 - len(proxy_v2_header)`, where `proxy_v2_header` is defined in the [HAProxy PROXY protocol](https://www.haproxy.org/download/3.0/doc/proxy-protocol.txt).
 
-L replies `0x01 || zeros(221)` back to R to acknowledge the connection.
+L replies `0x0d || zeros(221)` back to R to acknowledge the connection. If L cannot decode `proxy_v2_header`, it terminates the connection after acknowledging the connection, to prevent the relay from retrying infinitely.
 
 After that, the TCP connection is handed off to proxy the traffic for that connection.
 
-### `payload[0] >= 0x02`: ignored
+### Others: ignored
 
-The current implementation ignores any payload types other than `0x00` and `0x01`.
+The current implementation ignores any payload types other than `0x00` and `0x0d`.
 
 ## After handing off
 
