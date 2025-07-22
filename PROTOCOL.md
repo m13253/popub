@@ -17,13 +17,13 @@ Each message is exactly 256 bytes.
 ```
 <L, R> psk: [32]byte := Argon2id(passphrase, salt="popub", time=1, memory=64*1024, threads=4, length=32)
 
-<L> privkey_L, pubkey_L := new_Lurve25519_key_pair()
+<L> privkey_L, pubkey_L := new_Curve25519_key_pair()
 <L> nonce_L := random(length=24)
 <L> fill_L := random(length=184)
 <L→R> nonce_L || XChaCha20Poly1305_seal(key=psk, nonce=nonce_L, plaintext=pubkey_L, additional_data=fill_L) || fill_L
 
 <R> pubkey_L := XChaCha20Poly1305_open(…)
-<R> privkey_R, pubkey_R := new_Lurve25519_key_pair()
+<R> privkey_R, pubkey_R := new_Curve25519_key_pair()
 <R> ephkey := X25519(privkey_R, pubkey_L)
 <R> nonce_L := random(length=24)
 <R> fill_L := random(length=184)
