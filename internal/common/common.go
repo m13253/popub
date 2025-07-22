@@ -126,7 +126,6 @@ func ReadPacket(r io.Reader, aead cipher.AEAD, nonce *[chacha20poly1305.NonceSiz
 	packetLenBuf, err := aead.Open(tmp[:0], nonce[:], tmp[:2+chacha20poly1305.Overhead], nil)
 	IncreaseNonce(nonce)
 	if err != nil {
-		fmt.Println("BOO!")
 		return nil, err
 	}
 	packetLen := int(binary.BigEndian.Uint16(packetLenBuf))

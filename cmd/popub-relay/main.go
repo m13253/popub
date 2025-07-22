@@ -135,11 +135,14 @@ func authConn(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, authKey 
 func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, recvChan <-chan []byte, aead cipher.AEAD, nonceSend, nonceRecv *[chacha20poly1305.NonceSizeX]byte) {
 	var publicConn *net.TCPConn
 	pingBalance := 0
+	pingTicker := time.NewTicker(common.PingInterval)
 
 	var buf [common.MaxPacketSize]byte
 	for {
 		select {
 		case publicConn = <-publicConnChan:
+			pingTicker.Stop()
+
 			publicAddr := publicConn.RemoteAddr().String()
 			log.Println("accept:", publicAddr)
 
@@ -166,14 +169,16 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 
 		case packet, ok := <-recvChan:
 			if !ok {
+				pingTicker.Stop()
 				return
 			} else if bytes.HasPrefix(packet, []byte{0}) && pingBalance > 0 {
 				pingBalance -= 1
 			}
 
-		case <-time.After(common.PingInterval):
+		case <-pingTicker.C:
 			if pingBalance > 1 {
 				log.Println("connection timed out")
+				pingTicker.Stop()
 				relayConn.Close()
 				return
 			}
@@ -182,6 +187,7 @@ func relayLoopSend(relayConn *net.TCPConn, publicConnChan chan *net.TCPConn, rec
 			err := common.WritePacket(relayConn, (&[256 - common.PacketOverhead]byte{})[:], aead, nonceSend, buf[:])
 			if err != nil {
 				log.Println(err)
+				pingTicker.Stop()
 				relayConn.Close()
 				return
 			}
