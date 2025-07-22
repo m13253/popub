@@ -72,22 +72,22 @@ func ReadX25519(r io.Reader, auth_key []byte) (*ecdh.PublicKey, error) {
 		return nil, err
 	}
 
-	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + 184 + chacha20poly1305.Overhead]byte
+	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + chacha20poly1305.Overhead + 184]byte
 	_, err = io.ReadFull(r, buf[:])
 	if err != nil {
 		return nil, err
 	}
-	_, err = aead.Open(
-		nil,
+	pubkey, err := aead.Open(
+		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX],
 		buf[:chacha20poly1305.NonceSizeX],
-		buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+184:],
-		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX+curve25519.PointSize+184],
+		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead],
+		buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead:],
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return ecdh.X25519().NewPublicKey(buf[chacha20poly1305.NonceSizeX : chacha20poly1305.NonceSizeX+curve25519.PointSize])
+	return ecdh.X25519().NewPublicKey(pubkey)
 }
 
 func WriteX25519(w io.Writer, pubkey *ecdh.PublicKey, auth_key []byte) error {
@@ -96,18 +96,18 @@ func WriteX25519(w io.Writer, pubkey *ecdh.PublicKey, auth_key []byte) error {
 		return err
 	}
 
-	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + 184 + chacha20poly1305.Overhead]byte
+	var buf [chacha20poly1305.NonceSizeX + curve25519.PointSize + chacha20poly1305.Overhead + 184]byte
 	_, _ = rand.Read(buf[:chacha20poly1305.NonceSizeX])
 	copy(buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX+curve25519.PointSize], pubkey.Bytes())
-	_, _ = rand.Read(buf[chacha20poly1305.NonceSizeX+curve25519.PointSize : chacha20poly1305.NonceSizeX+curve25519.PointSize+184])
+	_, _ = rand.Read(buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead:])
 
 	tagBuf := aead.Seal(
-		buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+184:chacha20poly1305.NonceSizeX+curve25519.PointSize+184],
+		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX],
 		buf[:chacha20poly1305.NonceSizeX],
-		nil,
-		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX+curve25519.PointSize+184],
+		buf[chacha20poly1305.NonceSizeX:chacha20poly1305.NonceSizeX+curve25519.PointSize],
+		buf[chacha20poly1305.NonceSizeX+curve25519.PointSize+chacha20poly1305.Overhead:],
 	)
-	if len(tagBuf) != chacha20poly1305.Overhead {
+	if len(tagBuf) != curve25519.PointSize+chacha20poly1305.Overhead {
 		panic("aead.Seal did not return the correct buffer length")
 	}
 
