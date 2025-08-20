@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	InvalidProxyV2Address = errors.New("invalid PROXY v2 address")
-	InvalidProxyV2Header  = errors.New("invalid PROXY v2 protocol header")
+	ErrInvalidProxyV2Address = errors.New("invalid PROXY v2 address")
+	ErrInvalidProxyV2Header  = errors.New("invalid PROXY v2 protocol header")
 )
 
 func EncodeProxyV2Header(conn *net.TCPConn) (buf [256 - common.PacketOverhead]byte) {
@@ -34,7 +34,7 @@ func EncodeProxyV2Header(conn *net.TCPConn) (buf [256 - common.PacketOverhead]by
 		binary.BigEndian.PutUint16(buf[48:50], uint16(publicAddr.Port))
 		binary.BigEndian.PutUint16(buf[50:52], uint16(remoteAddr.Port))
 	} else {
-		panic(fmt.Sprintf("invaild IP address: [%s, %s]", publicAddr, remoteAddr))
+		panic(fmt.Sprintf("invalid IP address: [%s, %s]", publicAddr, remoteAddr))
 	}
 	return
 }
@@ -53,17 +53,17 @@ func ExtractProxyV2Header(buf []byte) []byte {
 
 func DecodeProxyV2Header(header []byte) (publicAddr, remoteAddr *net.TCPAddr, err error) {
 	if len(header) < 16 || !bytes.Equal(header[:13], []byte("\r\n\r\n\x00\r\nQUIT\n!")) {
-		return nil, nil, InvalidProxyV2Header
+		return nil, nil, ErrInvalidProxyV2Header
 	}
 	addrFamily := header[13]
 	bodyLen := binary.BigEndian.Uint16(header[14:16])
 	switch addrFamily {
 	case 0x11:
 		if len(header) < 28 {
-			return nil, nil, InvalidProxyV2Header
+			return nil, nil, ErrInvalidProxyV2Header
 		}
 		if bodyLen < 12 {
-			return nil, nil, InvalidProxyV2Address
+			return nil, nil, ErrInvalidProxyV2Address
 		}
 		publicAddr = &net.TCPAddr{
 			IP:   net.IPv4(header[16], header[17], header[18], header[19]),
@@ -76,10 +76,10 @@ func DecodeProxyV2Header(header []byte) (publicAddr, remoteAddr *net.TCPAddr, er
 		return
 	case 0x21:
 		if len(header) < 52 {
-			return nil, nil, InvalidProxyV2Header
+			return nil, nil, ErrInvalidProxyV2Header
 		}
 		if bodyLen < 36 {
-			return nil, nil, InvalidProxyV2Address
+			return nil, nil, ErrInvalidProxyV2Address
 		}
 		publicAddr = &net.TCPAddr{
 			IP:   bytes.Clone(header[16:32]),
@@ -91,6 +91,6 @@ func DecodeProxyV2Header(header []byte) (publicAddr, remoteAddr *net.TCPAddr, er
 		}
 		return
 	default:
-		return nil, nil, InvalidProxyV2Address
+		return nil, nil, ErrInvalidProxyV2Address
 	}
 }
