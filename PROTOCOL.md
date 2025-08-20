@@ -38,7 +38,7 @@ After the ephemeral key `ephkey` is generated, all subsequent communication uses
 
 ## Encrypted Packet format
 
-We use a 192-bit unsigned integer counter for each direction. It is initialized to 0 for L→R direction, and 1 for R→L direction. The counter is not transmitted on wire. After sending or receiving each packet, the counter increases by 4.
+We use a 192-bit unsigned integer counter per direction. It is initialized to 0 for L→R direction, and 1 for R→L direction. The counter is not transmitted on wire. After sending or receiving each packet, the counter increases by 4.
 
 The payload of the packet must not be larger than 16350 bytes — ensuring the encrypted packet be no larger than 16384 bytes.
 
@@ -64,7 +64,7 @@ L can assume the connection is dead if no ping payload has been received for 90 
 
 When R accepts an incoming connection from its public endpoint, it sends an accept payload to L.
 
-In the current implementation, an accept payload is `proxy_v2_header || zeros(222 - len(proxy_v2_header)`, where `proxy_v2_header` is defined in the [HAProxy PROXY protocol](https://www.haproxy.org/download/3.0/doc/proxy-protocol.txt). Currently, the information in `proxy_v2_header` is only used to print logs.
+In the current implementation, an accept payload is `proxy_v2_header || zeros(222 - len(proxy_v2_header)`, where `proxy_v2_header` is defined in the [HAProxy PROXY protocol](https://www.haproxy.org/download/3.0/doc/proxy-protocol.txt). In the current version, the information in `proxy_v2_header` is only used to print logs, and is not passed to the application.
 
 L replies `0x0d || zeros(221)` back to R to acknowledge the connection. If L cannot decode `proxy_v2_header`, it terminates the connection after acknowledging the connection, to prevent the relay from retrying infinitely.
 
@@ -77,3 +77,11 @@ The current implementation ignores any payload types other than `0x00` and `0x0d
 ## After handing off
 
 The traffic is encrypted using `encrypt_packet` and sent through this TCP connection.
+
+## Quantum Resistance Analysis
+
+As of 2025, we understand that Argon2 is quantum resistant due to being memory hard; XChacha20-Poly1305 is quantum resistant due to being symmetric. However, X25519 is not quantum resistant.
+
+This protocol encapsulates the X25519 key exchange inside the XChacha20-Poly1305 encrypted traffic, ensuring only those with access to `psk` can eavesdrop it or modifying it without being detected, effectively making the overall procedure quantum resistant.
+
+The current state-of-the-art post-quantum key exchange protocols (e.g, ML-KEM) are not selected due to significant communication overhead. Once a better protocol is invented in the future, we can re-evaluate the handshake design.
